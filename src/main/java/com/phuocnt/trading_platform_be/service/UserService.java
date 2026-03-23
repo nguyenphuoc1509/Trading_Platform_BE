@@ -7,8 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface UserService {
-    Optional<User> finUserByToken(String token);
-    Optional<User>  findByEmail(String email);
+    User finUserByToken(String token);
+    User  findByEmail(String email);
     Optional<User> findById(Long userId);
     Optional<User> enableTwoFactorAuthentication(VerificationType verificationType, String sendTo, User user);
     Optional<User> updatePassword(User user, String newPassword);

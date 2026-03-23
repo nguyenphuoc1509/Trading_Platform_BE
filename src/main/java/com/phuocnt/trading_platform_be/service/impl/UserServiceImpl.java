@@ -22,9 +22,9 @@ public class UserServiceImpl implements UserService {
 
 
     @Override
-    public Optional<User> finUserByToken(String token) {
+    public User finUserByToken(String token) {
         String email = jwtService.getEmailFromToken(token);
-        Optional<User> user = userRepository.findByEmail(email);
+        User user = userRepository.findByEmail(email);
 
         if (user == null) {
             throw new RuntimeException("User not found");
@@ -33,8 +33,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<User> findByEmail(String email) {
-        Optional<User> user = userRepository.findByEmail(email);
+    public User findByEmail(String email) {
+        User user = userRepository.findByEmail(email);
 
         if (user == null) {
             throw new RuntimeException("User not found");

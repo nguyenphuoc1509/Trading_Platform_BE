@@ -27,14 +27,14 @@ public class UserController {
 
     @GetMapping("/profile")
     public ResponseEntity<User> getUserProfile(@RequestHeader("Authorization") String token){
-        User user = userService.finUserByToken(token).orElseThrow();
+        User user = userService.finUserByToken(token);
         return new ResponseEntity<>(user, HttpStatus.OK);
     }
 
     @PostMapping("/verification/{verificationType}/send-otp")
     public ResponseEntity<String> sendVerificationOtp(@PathVariable VerificationType verificationType,
                                                     @RequestHeader("Authorization") String token) throws MessagingException {
-        User user = userService.finUserByToken(token).orElseThrow();
+        User user = userService.finUserByToken(token);
 
         VerificationCode verificationCode = verificationCodeService.
                 getVerificationCodeByUserId(user.getId());
@@ -50,8 +50,9 @@ public class UserController {
 
 
     @PatchMapping("/enable-two-factor/verify-otp/{otp}")
-    public ResponseEntity<User> enableTwoFactorAuthentication(@PathVariable String otp, @RequestHeader("Authorization") String token){
-        User user = userService.finUserByToken(token).orElseThrow();
+    public ResponseEntity<User> enableTwoFactorAuthentication(@PathVariable String otp,
+                                                              @RequestHeader("Authorization") String token) throws Exception{
+        User user = userService.finUserByToken(token);
 
         VerificationCode verificationCode = verificationCodeService.getVerificationCodeByUserId(user.getId());
 
@@ -62,8 +63,9 @@ public class UserController {
         if (isVerified){
             User updatedUser = userService.enableTwoFactorAuthentication(verificationCode.getVerificationType(), sendTo, user)
                     .orElseThrow();
+            return new ResponseEntity<>(user, HttpStatus.OK);
         }
-        return new ResponseEntity<>(user, HttpStatus.OK);
+        throw new Exception("Wrong Otp");
     }
 
 
