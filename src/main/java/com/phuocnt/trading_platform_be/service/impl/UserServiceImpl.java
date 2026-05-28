@@ -7,6 +7,7 @@ import com.phuocnt.trading_platform_be.repository.UserRepository;
 import com.phuocnt.trading_platform_be.security.JwtService;
 import com.phuocnt.trading_platform_be.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -19,27 +20,13 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private JwtService jwtService;
-
-
-    @Override
-    public User finUserByToken(String token) {
-        String email = jwtService.getEmailFromToken(token);
-        User user = userRepository.findByEmail(email);
-
-        if (user == null) {
-            throw new RuntimeException("User not found");
-        }
-        return user;
-    }
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Override
     public User findByEmail(String email) {
-        User user = userRepository.findByEmail(email);
-
-        if (user == null) {
-            throw new RuntimeException("User not found");
-        }
-        return user;
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     @Override
@@ -64,7 +51,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Optional<User> updatePassword(User user, String newPassword) {
-        user.setPassword(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
 
         return Optional.of(userRepository.save(user));
     }

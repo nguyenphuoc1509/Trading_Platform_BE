@@ -1,5 +1,6 @@
 package com.phuocnt.trading_platform_be.service.impl;
 
+import com.phuocnt.trading_platform_be.dto.request.RegisterRequest;
 import com.phuocnt.trading_platform_be.dto.response.AuthResponse;
 import com.phuocnt.trading_platform_be.entity.*;
 import com.phuocnt.trading_platform_be.enums.RoleCode;
@@ -33,8 +34,8 @@ public class AuthServiceImpl implements AuthService {
     private EmailService emailService;
 
     @Override
-    public AuthResponse register(User user) {
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+    public AuthResponse register(RegisterRequest req) {
+        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
             throw new ConflictException("Email already exists");
         }
 
@@ -42,9 +43,9 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new RuntimeException("Default role not found"));
 
         User newUser = new User();
-        newUser.setEmail(user.getEmail());
-        newUser.setFullName(user.getFullName());
-        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
+        newUser.setEmail(req.getEmail());
+        newUser.setFullName(req.getFullName());
+        newUser.setPassword(passwordEncoder.encode(req.getPassword()));
         newUser.setRoles(Set.of(userRole));
 
         User savedUser = userRepository.save(newUser);
@@ -104,10 +105,19 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse verifyOtp(String id, String otp) {
         TwoFactorOTP twoFactorOTP = twoFactorOTPService.findById(id);
+
+        if (twoFactorOTP == null) {
+            throw new RuntimeException("Invalid session");
+        }
+
         if (twoFactorOTPService.verifyTwoFactorOTP(twoFactorOTP, otp)) {
             AuthResponse res = new AuthResponse();
-            res.setMessage("Two factor auth is verified");
+            res.setAccessToken(twoFactorOTP.getToken());
+            res.setStatus(true);
+            res.setMessage("Two factor auth verified successfully");
             res.setTwoFactorAuthEnabled(true);
+
+            twoFactorOTPService.deleteTwoFactorOTP(twoFactorOTP);
             return res;
         }
         throw new RuntimeException("Invalid OTP");

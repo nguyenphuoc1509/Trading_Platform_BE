@@ -23,7 +23,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         verificationCode1.setOtp(OtpUtils.generateOtp());
         verificationCode1.setVerificationType(verificationType);
         verificationCode1.setUser(user);
-
+        verificationCode1.setExpiredAt(OtpUtils.generateExpiredAt());
         return verificationCodeRepository.save(verificationCode1);
     }
 

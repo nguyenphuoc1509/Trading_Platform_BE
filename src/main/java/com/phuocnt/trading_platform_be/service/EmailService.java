@@ -2,6 +2,7 @@ package com.phuocnt.trading_platform_be.service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -9,26 +10,23 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class EmailService {
-    private JavaMailSender mailSender;
+
+    private final JavaMailSender mailSender;
 
     public void senVerificationOtpEmail(String email, String otpCode) throws MessagingException {
         MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(message, "utf-8");
+        MimeMessageHelper helper = new MimeMessageHelper(message, "utf-8");
 
-        String subject = "Verification Otp";
-        String content = "Your OTP code is: " + otpCode;
-
-        mimeMessageHelper.setSubject(subject);
-        mimeMessageHelper.setText(content);
-        mimeMessageHelper.setTo(email);
+        helper.setSubject("Verification OTP");
+        helper.setText("Your OTP code is: " + otpCode);
+        helper.setTo(email);
 
         try {
             mailSender.send(message);
-        }
-        catch (MailException e) {
+        } catch (MailException e) {
             throw new MailSendException(e.getMessage());
-
         }
     }
 }

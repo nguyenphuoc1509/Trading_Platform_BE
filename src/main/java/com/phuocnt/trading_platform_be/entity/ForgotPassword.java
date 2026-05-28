@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Setter
@@ -25,4 +27,6 @@ public class ForgotPassword {
     private VerificationType verificationType;
 
     private String sendTo;
+
+    private LocalDateTime expiredAt;
 }

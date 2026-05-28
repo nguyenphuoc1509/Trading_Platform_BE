@@ -1,12 +1,12 @@
 package com.phuocnt.trading_platform_be.controller;
 
 import com.phuocnt.trading_platform_be.dto.request.ForgotPasswordTokenRequest;
+import com.phuocnt.trading_platform_be.dto.request.RegisterRequest;
 import com.phuocnt.trading_platform_be.dto.request.ResetPasswordRequest;
 import com.phuocnt.trading_platform_be.dto.response.ApiResponse;
 import com.phuocnt.trading_platform_be.dto.response.AuthResponse;
 import com.phuocnt.trading_platform_be.entity.ForgotPassword;
 import com.phuocnt.trading_platform_be.entity.User;
-import com.phuocnt.trading_platform_be.entity.VerificationCode;
 import com.phuocnt.trading_platform_be.enums.VerificationType;
 import com.phuocnt.trading_platform_be.service.AuthService;
 import com.phuocnt.trading_platform_be.service.EmailService;
@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -38,8 +39,8 @@ public class AuthController {
     private EmailService emailService;
 
     @PostMapping("/signup")
-    public ResponseEntity<AuthResponse> register(@RequestBody User user) {
-        return new ResponseEntity<>(authService.register(user), HttpStatus.CREATED);
+    public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest req) {
+        return new ResponseEntity<>(authService.register(req), HttpStatus.CREATED);
     }
 
     @PostMapping("/signin")
@@ -80,6 +81,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse> verifyPasswordOtp(@RequestParam String id,
                                                     @RequestBody ResetPasswordRequest req) {
         ForgotPassword forgotPassword = forgotPasswordService.findById(id);
+
+        if (forgotPassword.getExpiredAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP has expired");
+        }
 
         boolean isVerified = forgotPassword.getOtp().equals(req.getOtp());
 

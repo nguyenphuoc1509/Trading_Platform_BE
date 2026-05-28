@@ -4,6 +4,8 @@ import com.phuocnt.trading_platform_be.enums.VerificationType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Setter
@@ -26,4 +28,6 @@ public class VerificationCode {
 
     @Enumerated(EnumType.STRING)
     private VerificationType verificationType;
+
+    private LocalDateTime expiredAt;
 }

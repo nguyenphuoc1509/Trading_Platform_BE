@@ -5,10 +5,12 @@ import com.phuocnt.trading_platform_be.entity.User;
 import com.phuocnt.trading_platform_be.enums.VerificationType;
 import com.phuocnt.trading_platform_be.repository.ForgotPasswordRepository;
 import com.phuocnt.trading_platform_be.service.ForgotPasswordService;
+import com.phuocnt.trading_platform_be.utils.OtpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class ForgotPasswordImpl implements ForgotPasswordService {
@@ -17,17 +19,21 @@ public class ForgotPasswordImpl implements ForgotPasswordService {
     private ForgotPasswordRepository forgotPasswordRepository;
 
     @Override
-    public ForgotPassword createToken(User user, String id, String otp,
-                                      VerificationType verificationType, String sendTo) {
+    public ForgotPassword createToken(User user, String otp, VerificationType verificationType, String sendTo) {
+        forgotPasswordRepository.findByUser(user).ifPresent(forgotPasswordRepository::delete);
+        forgotPasswordRepository.flush();
+
         ForgotPassword token = new ForgotPassword();
+        token.setId(UUID.randomUUID().toString());
         token.setUser(user);
         token.setOtp(otp);
         token.setVerificationType(verificationType);
         token.setSendTo(sendTo);
-        token.setId(id);
+        token.setExpiredAt(OtpUtils.generateExpiredAt());
 
         return forgotPasswordRepository.save(token);
     }
+
 
     @Override
     public ForgotPassword findById(String id) {

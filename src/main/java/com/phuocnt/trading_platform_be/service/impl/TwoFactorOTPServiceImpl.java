@@ -4,9 +4,11 @@ import com.phuocnt.trading_platform_be.entity.TwoFactorOTP;
 import com.phuocnt.trading_platform_be.entity.User;
 import com.phuocnt.trading_platform_be.repository.TwoFactorOTPRepository;
 import com.phuocnt.trading_platform_be.service.TwoFactorOTPService;
+import com.phuocnt.trading_platform_be.utils.OtpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,7 +29,7 @@ public class TwoFactorOTPServiceImpl implements TwoFactorOTPService {
         twoFactorOTP.setOtp(otpCode);
         twoFactorOTP.setUser(user);
         twoFactorOTP.setToken(token);
-
+        twoFactorOTP.setExpiredAt(OtpUtils.generateExpiredAt());
         return twoFactorOTPRepository.save(twoFactorOTP);
     }
 
@@ -44,6 +46,9 @@ public class TwoFactorOTPServiceImpl implements TwoFactorOTPService {
 
     @Override
     public boolean verifyTwoFactorOTP(TwoFactorOTP twoFactorOTP, String otpCode) {
+        if (twoFactorOTP.getExpiredAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP has expired");
+        }
         return twoFactorOTP.getOtp().equals(otpCode);
     }
 
