@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ForgotPassword {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO )
     private String id;
 
     @OneToOne

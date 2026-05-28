@@ -25,7 +25,9 @@ spring:
           auth: true
           starttls:
             enable: true
-
+  jackson:
+    deserialization:
+      fail-on-null-for-primitives: false
 jwt:
   secret-key: ${JWT_SECRET_KEY}
 
