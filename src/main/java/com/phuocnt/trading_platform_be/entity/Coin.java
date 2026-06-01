@@ -1,16 +1,21 @@
 package com.phuocnt.trading_platform_be.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.util.Date;
-
-@Data
 @Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Coin {
+
     @Id
     @JsonProperty("id")
     private String id;
@@ -22,13 +27,17 @@ public class Coin {
     private String name;
 
     @JsonProperty("image")
+    @Column(length = 512)
     private String image;
 
     @JsonProperty("current_price")
-    private double currentPrice;
+    private Double currentPrice;
 
     @JsonProperty("market_cap")
     private Long marketCap;
+
+    @JsonProperty("market_cap_rank")
+    private Integer marketCapRank;
 
     @JsonProperty("fully_diluted_valuation")
     private Long fullyDilutedValuation;
@@ -36,8 +45,23 @@ public class Coin {
     @JsonProperty("total_volume")
     private Long totalVolume;
 
+    @JsonProperty("high_24h")
+    private Double high24h;
+
+    @JsonProperty("low_24h")
+    private Double low24h;
+
+    @JsonProperty("price_change_24h")
+    private Double priceChange24h;
+
+    @JsonProperty("price_change_percentage_24h")
+    private Double priceChangePercentage24h;
+
     @JsonProperty("market_cap_change_24h")
     private Long marketCapChange24h;
+
+    @JsonProperty("market_cap_change_percentage_24h")
+    private Double marketCapChangePercentage24h;
 
     @JsonProperty("circulating_supply")
     private Long circulatingSupply;
@@ -49,27 +73,29 @@ public class Coin {
     private Long maxSupply;
 
     @JsonProperty("ath")
-    private double ath;
+    private Double ath;
 
     @JsonProperty("ath_change_percentage")
-    private double athChangePercentage;
+    private Double athChangePercentage;
 
     @JsonProperty("ath_date")
-    private Date athDate;
+    private String athDate;
 
     @JsonProperty("atl")
-    private double atl;
+    private Double atl;
 
     @JsonProperty("atl_change_percentage")
-    private double atlChangePercentage;
+    private Double atlChangePercentage;
 
     @JsonProperty("atl_date")
-    private Date atlDate;
-
-    @JsonProperty("roi")
-    @JsonIgnore
-    private String roi;
+    private String atlDate;
 
     @JsonProperty("last_updated")
-    private Date lastUpdated;
+    private String lastUpdated;
+
+    @JsonProperty("price_high_24h")
+    private Double priceHigh24h;
+
+    @JsonProperty("price_low_24h")
+    private Double priceLow24h;
 }

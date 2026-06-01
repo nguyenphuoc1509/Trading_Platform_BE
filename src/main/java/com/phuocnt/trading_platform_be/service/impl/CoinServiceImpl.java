@@ -52,7 +52,12 @@ public class CoinServiceImpl implements CoinService {
 
         try {
             String body = callApi(url);
-            return objectMapper.readValue(body, new TypeReference<List<Coin>>() {});
+            List<Coin> coins = objectMapper.readValue(body, new TypeReference<List<Coin>>() {});
+
+            // Save coins from CoinGecko to the database
+            coinRepository.saveAll(coins);
+
+            return coins;
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse coin list: " + e.getMessage());
         }

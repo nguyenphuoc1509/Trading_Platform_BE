@@ -24,7 +24,6 @@ public class CustomerUserDetailService implements UserDetailsService {
         User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        // Map roles từ DB → GrantedAuthority
         List<GrantedAuthority> authorities = user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getCode().name()))
                 .collect(Collectors.toList());
