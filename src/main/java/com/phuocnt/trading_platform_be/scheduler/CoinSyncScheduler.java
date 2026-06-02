@@ -13,14 +13,14 @@ public class CoinSyncScheduler {
 
     private final CoinService coinService;
 
-    @Scheduled(fixedDelay = 300_000)
+    @Scheduled(fixedDelay = 900_000) // 15 phút
     public void syncCoins() {
         try {
-            for (int page = 1; page <= 10; page++) {
+            for (int page = 1; page <= 3; page++) {
                 coinService.getCoinsList(page);
-                Thread.sleep(2000);
+                Thread.sleep(3000);
             }
-            log.info("Coin sync completed");
+            log.info("Coin sync completed — {} coins synced", 3 * 10);
         } catch (Exception e) {
             log.error("Coin sync failed: {}", e.getMessage());
         }

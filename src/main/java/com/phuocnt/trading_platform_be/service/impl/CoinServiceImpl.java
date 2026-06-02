@@ -55,7 +55,9 @@ public class CoinServiceImpl implements CoinService {
             List<Coin> coins = objectMapper.readValue(body, new TypeReference<List<Coin>>() {});
 
             // Save coins from CoinGecko to the database
-            coinRepository.saveAll(coins);
+            for (Coin coin : coins) {
+                coinRepository.upsert(coin);
+            }
 
             return coins;
         } catch (Exception e) {

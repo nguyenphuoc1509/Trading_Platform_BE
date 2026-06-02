@@ -46,13 +46,12 @@ public class DataInitialize implements CommandLineRunner {
     private void initCoins() {
         try {
             log.info("Syncing coins on startup...");
-            for (int page = 1; page <= 3; page++) {
-                coinService.getCoinsList(page);
-                Thread.sleep(2000); // tránh rate limit CoinGecko
-            }
-            log.info("Coin sync completed — 30 coins loaded");
+            coinService.getCoinsList(1);
+            Thread.sleep(3000);
+            coinService.getCoinsList(2);
+            log.info("Coin sync on startup completed — 20 coins loaded");
         } catch (Exception e) {
-            log.warn("Coin sync failed: {} — app vẫn chạy bình thường", e.getMessage());
+            log.warn("Coin sync failed: {} — app still running", e.getMessage());
         }
     }
 }
