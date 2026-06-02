@@ -1,16 +1,18 @@
 package com.phuocnt.trading_platform_be.controller;
 
+import com.phuocnt.trading_platform_be.dto.request.OrderRequest;
 import com.phuocnt.trading_platform_be.entity.Order;
 import com.phuocnt.trading_platform_be.entity.User;
+import com.phuocnt.trading_platform_be.enums.OrderType;
 import com.phuocnt.trading_platform_be.service.OrderService;
 import com.phuocnt.trading_platform_be.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -21,26 +23,43 @@ public class OrderController {
     private final OrderService orderService;
     private final UserService userService;
 
+    // POST /api/orders/buy
+    // Body: { "coinId": "bitcoin", "quantity": 0.01, "mode": "MARKET" }
+    // Body: { "coinId": "bitcoin", "quantity": 0.01, "mode": "LIMIT", "limitPrice": 60000 }
     @PostMapping("/buy")
     public ResponseEntity<Order> buy(@AuthenticationPrincipal Jwt jwt,
-                                     @RequestParam String coinId,
-                                     @RequestParam BigDecimal quantity) {
+                                     @Valid @RequestBody OrderRequest request) {
         User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(orderService.buyOrder(user, coinId, quantity));
+        return ResponseEntity.ok(orderService.placeOrder(user, request, OrderType.BUY));
     }
 
+    // POST /api/orders/sell
     @PostMapping("/sell")
     public ResponseEntity<Order> sell(@AuthenticationPrincipal Jwt jwt,
-                                     @RequestParam String coinId,
-                                     @RequestParam BigDecimal quantity) {
+                                      @Valid @RequestBody OrderRequest request) {
         User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(orderService.sellOrder(user, coinId, quantity));
+        return ResponseEntity.ok(orderService.placeOrder(user, request, OrderType.SELL));
     }
 
+    // DELETE /api/orders/{orderId}/cancel
+    @DeleteMapping("/{orderId}/cancel")
+    public ResponseEntity<Order> cancel(@AuthenticationPrincipal Jwt jwt,
+                                        @PathVariable Long orderId) {
+        User user = userService.findByEmail(jwt.getSubject());
+        return ResponseEntity.ok(orderService.cancelOrder(user, orderId));
+    }
+
+    // GET /api/orders — get history orders
     @GetMapping
     public ResponseEntity<List<Order>> getOrders(@AuthenticationPrincipal Jwt jwt) {
         User user = userService.findByEmail(jwt.getSubject());
         return ResponseEntity.ok(orderService.getOrdersByUser(user));
     }
 
+    // GET /api/orders/pending — get orders PENDING
+    @GetMapping("/pending")
+    public ResponseEntity<List<Order>> getPending(@AuthenticationPrincipal Jwt jwt) {
+        User user = userService.findByEmail(jwt.getSubject());
+        return ResponseEntity.ok(orderService.getPendingOrders(user));
+    }
 }
