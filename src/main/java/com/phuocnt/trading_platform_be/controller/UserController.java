@@ -1,8 +1,11 @@
 package com.phuocnt.trading_platform_be.controller;
 
+import com.phuocnt.trading_platform_be.dto.response.ApiEnvelope;
+import com.phuocnt.trading_platform_be.dto.response.UserProfileResponse;
 import com.phuocnt.trading_platform_be.entity.User;
 import com.phuocnt.trading_platform_be.entity.VerificationCode;
 import com.phuocnt.trading_platform_be.enums.VerificationType;
+import com.phuocnt.trading_platform_be.mapper.UserMapper;
 import com.phuocnt.trading_platform_be.service.EmailService;
 import com.phuocnt.trading_platform_be.service.UserService;
 import com.phuocnt.trading_platform_be.service.VerificationCodeService;
@@ -30,13 +33,13 @@ public class UserController {
 
     @GetMapping("/profile")
     @PreAuthorize("hasAuthority('ROLE_USER') or hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<User> getUserProfile(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<ApiEnvelope<UserProfileResponse>> getUserProfile(@AuthenticationPrincipal Jwt jwt) {
         User user = userService.findByEmail(jwt.getSubject());
-        return new ResponseEntity<>(user, HttpStatus.OK);
+        return ResponseEntity.ok(ApiEnvelope.success(UserMapper.toProfileResponse(user)));
     }
 
     @PostMapping("/verification/{verificationType}/send-otp")
-    public ResponseEntity<String> sendVerificationOtp(
+    public ResponseEntity<ApiEnvelope<String>> sendVerificationOtp(
             @PathVariable VerificationType verificationType,
             @AuthenticationPrincipal Jwt jwt) throws MessagingException {
 
@@ -51,11 +54,11 @@ public class UserController {
         if (verificationType.equals(VerificationType.EMAIL)) {
             emailService.senVerificationOtpEmail(user.getEmail(), verificationCode.getOtp());
         }
-        return new ResponseEntity<>("Verification otp sent successful", HttpStatus.OK);
+        return ResponseEntity.ok(ApiEnvelope.success("Verification OTP sent successfully"));
     }
 
     @PatchMapping("/enable-two-factor/verify-otp/{otp}")
-    public ResponseEntity<User> enableTwoFactorAuthentication(
+    public ResponseEntity<ApiEnvelope<UserProfileResponse>> enableTwoFactorAuthentication(
             @PathVariable String otp,
             @AuthenticationPrincipal Jwt jwt) throws Exception {
 
@@ -73,12 +76,14 @@ public class UserController {
                 ? verificationCode.getEmail()
                 : verificationCode.getPhone();
 
-        boolean isVerified = verificationCode.getOtp().equals(otp);
-        if (isVerified) {
-            userService.enableTwoFactorAuthentication(
-                    verificationCode.getVerificationType(), sendTo, user);
-            return new ResponseEntity<>(user, HttpStatus.OK);
+        if (!verificationCode.getOtp().equals(otp)) {
+            throw new Exception("Wrong OTP");
         }
-        throw new Exception("Wrong Otp");
+        userService.enableTwoFactorAuthentication(
+                verificationCode.getVerificationType(), sendTo, user);
+
+        User updatedUser = userService.findByEmail(jwt.getSubject());
+
+        return ResponseEntity.ok(ApiEnvelope.success(UserMapper.toProfileResponse(updatedUser)));
     }
 }

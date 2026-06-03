@@ -1,8 +1,12 @@
 package com.phuocnt.trading_platform_be.controller;
 
+import com.phuocnt.trading_platform_be.dto.response.ApiEnvelope;
+import com.phuocnt.trading_platform_be.dto.response.WalletResponse;
+import com.phuocnt.trading_platform_be.dto.response.WalletTransactionResponse;
 import com.phuocnt.trading_platform_be.entity.User;
 import com.phuocnt.trading_platform_be.entity.Wallet;
 import com.phuocnt.trading_platform_be.entity.WalletTransaction;
+import com.phuocnt.trading_platform_be.mapper.WalletMapper;
 import com.phuocnt.trading_platform_be.service.UserService;
 import com.phuocnt.trading_platform_be.service.WalletService;
 import lombok.RequiredArgsConstructor;
@@ -23,26 +27,26 @@ public class WalletController {
     private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<Wallet> getWallet(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<ApiEnvelope<WalletResponse>> getWallet(@AuthenticationPrincipal Jwt jwt) {
         User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(walletService.getWalletByUserId(user.getId()));
+        return ResponseEntity.ok(ApiEnvelope.success(WalletMapper.toWalletResponse(walletService.getWalletByUserId(user.getId()))));
     }
 
     @PostMapping("/deposit")
-    public ResponseEntity<Wallet> deposit(@AuthenticationPrincipal Jwt jwt,@RequestParam BigDecimal amount) {
+    public ResponseEntity<ApiEnvelope> deposit(@AuthenticationPrincipal Jwt jwt,@RequestParam BigDecimal amount) {
         User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(walletService.deposit(user.getId(), amount));
+        return ResponseEntity.ok(ApiEnvelope.success(walletService.deposit(user.getId(), amount)));
     }
 
     @PostMapping("/withdraw")
-    public ResponseEntity<Wallet> withdraw(@AuthenticationPrincipal Jwt jwt,@RequestParam BigDecimal amount) {
+    public ResponseEntity<ApiEnvelope<WalletResponse>> withdraw(@AuthenticationPrincipal Jwt jwt,@RequestParam BigDecimal amount) {
         User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(walletService.withdraw(user.getId(), amount));
+        return ResponseEntity.ok(ApiEnvelope.success(WalletMapper.toWalletResponse(walletService.withdraw(user.getId(), amount))));
     }
 
     @GetMapping("/transactions")
-    public ResponseEntity<List<WalletTransaction>> getTransactionsHistory(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<ApiEnvelope<List<WalletTransactionResponse>>> getTransactionsHistory(@AuthenticationPrincipal Jwt jwt) {
         User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(walletService.getTransactionHistory(user.getId()));
+        return ResponseEntity.ok(ApiEnvelope.success(WalletMapper.toTxResponseList(walletService.getTransactionHistory(user.getId()))));
     }
 }

@@ -1,12 +1,16 @@
 package com.phuocnt.trading_platform_be.controller;
 
+import com.phuocnt.trading_platform_be.dto.response.ApiEnvelope;
+import com.phuocnt.trading_platform_be.dto.response.CoinSummaryResponse;
 import com.phuocnt.trading_platform_be.entity.Coin;
+import com.phuocnt.trading_platform_be.mapper.CoinMapper;
 import com.phuocnt.trading_platform_be.service.CoinService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/coins")
@@ -16,33 +20,35 @@ public class CoinController {
     private final CoinService coinService;
 
     @GetMapping
-    public ResponseEntity<List<Coin>> getCoinsList(@RequestParam(defaultValue = "1") int page) {
-        return ResponseEntity.ok(coinService.getCoinsList(page));
+    public ResponseEntity<ApiEnvelope<List<CoinSummaryResponse>>> getCoinsList(@RequestParam(defaultValue = "1") int page) {
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.getCoinsList(page).stream()
+                .map(CoinMapper::toCoinSummary)
+                .collect(Collectors.toList())));
     }
 
     @GetMapping("/{coinId}")
-    public ResponseEntity<String> getCoinDetail(@PathVariable String coinId) {
-        return ResponseEntity.ok(coinService.getCoinDetail(coinId));
+    public ResponseEntity<ApiEnvelope<String>> getCoinDetail(@PathVariable String coinId) {
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.getCoinDetail(coinId)));
     }
 
     @GetMapping("/{coinId}/chart")
-    public ResponseEntity<String> getMarketChart(@PathVariable String coinId,
+    public ResponseEntity<ApiEnvelope<String>> getMarketChart(@PathVariable String coinId,
                                                  @RequestParam(defaultValue = "7") int days) {
-        return ResponseEntity.ok(coinService.getMarketChart(coinId, days));
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.getMarketChart(coinId, days)));
     }
 
     @GetMapping("/search")
-    public ResponseEntity<String> searchCoin(@RequestParam String keyword) {
-        return ResponseEntity.ok(coinService.searchCoin(keyword));
+    public ResponseEntity<ApiEnvelope<String>> searchCoin(@RequestParam String keyword) {
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.searchCoin(keyword)));
     }
 
     @GetMapping("/top50")
-    public ResponseEntity<String> getTop50() {
-        return ResponseEntity.ok(coinService.getTop50CoinsByMarketCapRank());
+    public ResponseEntity<ApiEnvelope<String>> getTop50() {
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.getTop50CoinsByMarketCapRank()));
     }
 
     @GetMapping("/trending")
-    public ResponseEntity<String> getTrending() {
-        return ResponseEntity.ok(coinService.getTrendingCoins());
+    public ResponseEntity<ApiEnvelope<String>> getTrending() {
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.getTrendingCoins()));
     }
 }

@@ -1,8 +1,11 @@
 package com.phuocnt.trading_platform_be.controller;
 
+import com.phuocnt.trading_platform_be.dto.response.ApiEnvelope;
+import com.phuocnt.trading_platform_be.dto.response.PortfolioResponse;
 import com.phuocnt.trading_platform_be.entity.Portfolio;
 import com.phuocnt.trading_platform_be.entity.PortfolioItem;
 import com.phuocnt.trading_platform_be.entity.User;
+import com.phuocnt.trading_platform_be.mapper.PortfolioMapper;
 import com.phuocnt.trading_platform_be.repository.PortfolioItemRepository;
 import com.phuocnt.trading_platform_be.service.PortfolioService;
 import com.phuocnt.trading_platform_be.service.UserService;
@@ -25,16 +28,14 @@ public class PortfolioController {
     private final PortfolioItemRepository portfolioItemRepository;
     private final UserService userService;
 
+    // return portfolio + items + pnl
     @GetMapping
-    public ResponseEntity<Portfolio> getPortfolio(@AuthenticationPrincipal Jwt jwt) {
-        User user = userService.findByEmail(jwt.getSubject());
-        return ResponseEntity.ok(portfolioService.getPortfolio(user));
-    }
-
-    @GetMapping("/items")
-    public ResponseEntity<List<PortfolioItem>> getPortfolioItems(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<ApiEnvelope<PortfolioResponse>> getPortfolio(
+            @AuthenticationPrincipal Jwt jwt) {
         User user = userService.findByEmail(jwt.getSubject());
         Portfolio portfolio = portfolioService.getPortfolio(user);
-        return ResponseEntity.ok(portfolioItemRepository.findByPortfolio(portfolio));
+        List<PortfolioItem> items = portfolioItemRepository.findByPortfolio(portfolio);
+        return ResponseEntity.ok(ApiEnvelope.success(
+                PortfolioMapper.toPortfolioResponse(portfolio, items)));
     }
 }

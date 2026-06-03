@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -24,5 +25,6 @@ public class Portfolio {
     @Column(precision = 19, scale = 4)
     private BigDecimal totalValue = BigDecimal.ZERO;
 
+    @UpdateTimestamp
     private LocalDateTime updatedAt = LocalDateTime.now();
 }
