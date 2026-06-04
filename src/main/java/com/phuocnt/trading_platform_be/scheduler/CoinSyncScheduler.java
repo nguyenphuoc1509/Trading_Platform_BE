@@ -1,6 +1,7 @@
 package com.phuocnt.trading_platform_be.scheduler;
 
 import com.phuocnt.trading_platform_be.entity.Coin;
+import com.phuocnt.trading_platform_be.service.CoinCacheService;
 import com.phuocnt.trading_platform_be.service.CoinService;
 import com.phuocnt.trading_platform_be.service.PricePublisher;
 import lombok.RequiredArgsConstructor;
@@ -17,22 +18,21 @@ import java.util.List;
 public class CoinSyncScheduler {
 
     private final CoinService coinService;
-    private final PricePublisher pricePublisher;
+    private final CoinCacheService coinCacheService;
 
     @Scheduled(fixedDelay = 900_000) // 15 phút
     public void syncCoins() {
         try {
-            List<Coin> allSyncedCoins = new ArrayList<>();
+            int totalSynched = 0;
             for (int page = 0; page <= 3; page++) {
-                List<Coin> coins = coinService.getCoinsList(page);
-                allSyncedCoins.addAll(coins);
+                coinService.getCoinsList(page);
+                totalSynched += 10;
                 Thread.sleep(3000);
             }
-            log.info("Coin sync completed — {} coins synced", allSyncedCoins.size());
-
-            pricePublisher.broadcastPrices(allSyncedCoins);
+            coinCacheService.invalidateCoinList();
+            log.info("[Scheduler] Coin sync completed - {} coins synced to DB", totalSynched);
         } catch (Exception e) {
-            log.error("Coin sync failed: {}", e.getMessage());
+            log.error("[Scheduler] Coin sync failed: {}", e.getMessage());
         }
     }
 }

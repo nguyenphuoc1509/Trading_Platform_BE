@@ -9,19 +9,20 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PriceMessage {
+public class KlineMessage {
+
     private String type;
     private String coinId;
     private String symbol;
-    private String name;
+    private String interval;
 
-    // Price real time from binance stream
-    private String price;
-    private String open24h;
-    private String high24h;
-    private String low24h;
-    private String volume24h;
-    private String change24h;
+    private Long openTime;
+    private String open;
+    private String high;
+    private String low;
+    private String close;
+    private String volume;
+    private Boolean closed;
 
     private Long timestamp;
 }

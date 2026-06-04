@@ -2,8 +2,10 @@ package com.phuocnt.trading_platform_be.service.impl;
 
 import com.phuocnt.trading_platform_be.entity.Coin;
 import com.phuocnt.trading_platform_be.repository.CoinRepository;
+import com.phuocnt.trading_platform_be.service.CoinCacheService;
 import com.phuocnt.trading_platform_be.service.CoinService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -17,10 +19,12 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CoinServiceImpl implements CoinService {
 
     private final CoinRepository coinRepository;
     private final ObjectMapper objectMapper;
+    private final CoinCacheService coinCacheService;
 
     @Value("${coingecko.base-url}")
     private String baseUrl;
@@ -43,6 +47,12 @@ public class CoinServiceImpl implements CoinService {
 
     @Override
     public List<Coin> getCoinsList(int page) {
+        var cached = coinCacheService.getCoinList(page);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        log.info("[CoinGecko] Fetching page {} (cache miss)", page);
         String url = baseUrl + "/coins/markets" +
                 "?vs_currency=usd" +
                 "&order=market_cap_desc" +
@@ -58,6 +68,8 @@ public class CoinServiceImpl implements CoinService {
             for (Coin coin : coins) {
                 coinRepository.upsert(coin);
             }
+
+            coinCacheService.saveCoinList(page, coins);
 
             return coins;
         } catch (Exception e) {
