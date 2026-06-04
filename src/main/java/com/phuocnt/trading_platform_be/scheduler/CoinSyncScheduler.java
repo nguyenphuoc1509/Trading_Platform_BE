@@ -24,7 +24,7 @@ public class CoinSyncScheduler {
     public void syncCoins() {
         try {
             int totalSynched = 0;
-            for (int page = 0; page <= 3; page++) {
+            for (int page = 1; page <= 3; page++) {
                 coinService.getCoinsList(page);
                 totalSynched += 10;
                 Thread.sleep(3000);
