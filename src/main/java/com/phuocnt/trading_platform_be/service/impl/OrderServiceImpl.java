@@ -10,6 +10,7 @@ import com.phuocnt.trading_platform_be.service.CoinService;
 import com.phuocnt.trading_platform_be.service.OrderService;
 import com.phuocnt.trading_platform_be.service.PortfolioService;
 import com.phuocnt.trading_platform_be.service.WalletService;
+import com.phuocnt.trading_platform_be.service.CoinCacheService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ public class OrderServiceImpl implements OrderService {
     private final PortfolioService portfolioService;
     private final WalletTransactionRepository walletTransactionRepository;
     private final WalletRepository walletRepository;
+    private final CoinCacheService coinCacheService;
 
     private void validateOrderRequest(OrderRequest req) {
         if (req.getMode() == OrderMode.LIMIT) {
@@ -61,7 +63,7 @@ public class OrderServiceImpl implements OrderService {
     // MARKET ORDER
     private Order executeMarketOrder(User user, Coin coin,
                                      BigDecimal quantity, OrderType type) {
-        BigDecimal currentPrice = BigDecimal.valueOf(coin.getCurrentPrice());
+        BigDecimal currentPrice = getRealtimePrice(coin);
         BigDecimal totalValue = currentPrice.multiply(quantity);
 
         if (type == OrderType.BUY) {
@@ -254,7 +256,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     protected void processSinglePendingOrder(Order order) {
         Coin coin = coinService.findCoinById(order.getCoin().getId());
-        BigDecimal currentPrice = BigDecimal.valueOf(coin.getCurrentPrice());
+        BigDecimal currentPrice = getRealtimePrice(coin);
 
         boolean shouldExecute = checkPriceCondition(order, currentPrice);
 
@@ -312,5 +314,15 @@ public class OrderServiceImpl implements OrderService {
 
     private String formatQty(BigDecimal qty) {
         return qty.stripTrailingZeros().toPlainString();
+    }
+
+    private BigDecimal getRealtimePrice(Coin coin) {
+        return coinCacheService.getPrice(coin.getId())
+                .map(BigDecimal::new)
+                .orElseGet(() -> {
+                    log.warn("[Order] Redis price unavailable for {} — using DB price (may be stale)",
+                            coin.getId());
+                    return BigDecimal.valueOf(coin.getCurrentPrice());
+                });
     }
 }

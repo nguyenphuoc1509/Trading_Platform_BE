@@ -20,19 +20,23 @@ public class CoinSyncScheduler {
     private final CoinService coinService;
     private final CoinCacheService coinCacheService;
 
-    @Scheduled(fixedDelay = 900_000) // 15 phút
-    public void syncCoins() {
+    @Scheduled(initialDelay = 0, fixedDelay = 86_400_000) // 15 phút
+    public void syncCoinMetadata() {
         try {
-            int totalSynched = 0;
+            log.info("[Scheduler] Starting coin metadata sync from CoinGecko...");
+
+            coinCacheService.invalidateCoinList();
+
+            int totalSynced = 0;
             for (int page = 1; page <= 3; page++) {
                 coinService.getCoinsList(page);
-                totalSynched += 10;
+                totalSynced += 10;
                 Thread.sleep(3000);
             }
-            coinCacheService.invalidateCoinList();
-            log.info("[Scheduler] Coin sync completed - {} coins synced to DB", totalSynched);
+
+            log.info("[Scheduler] Coin metadata sync completed — {} coins synced to DB", totalSynced);
         } catch (Exception e) {
-            log.error("[Scheduler] Coin sync failed: {}", e.getMessage());
+            log.error("[Scheduler] Coin metadata sync failed: {}", e.getMessage());
         }
     }
 }

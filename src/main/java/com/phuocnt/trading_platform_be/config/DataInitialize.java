@@ -20,7 +20,6 @@ public class DataInitialize implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         initRoles();
-        initCoins(); // thêm
     }
 
     private void initRoles() {
@@ -43,15 +42,4 @@ public class DataInitialize implements CommandLineRunner {
         }
     }
 
-    private void initCoins() {
-        try {
-            log.info("Syncing coins on startup...");
-            coinService.getCoinsList(1);
-            Thread.sleep(3000);
-            coinService.getCoinsList(2);
-            log.info("Coin sync on startup completed — 20 coins loaded");
-        } catch (Exception e) {
-            log.warn("Coin sync failed: {} — app still running", e.getMessage());
-        }
-    }
 }

@@ -16,6 +16,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -31,12 +32,13 @@ public class CoinServiceImpl implements CoinService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    private final ConcurrentHashMap<Integer, Object> pageLocks = new ConcurrentHashMap<>();
+
     private String callApi(String url) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/json");
             HttpEntity<String> entity = new HttpEntity<>(headers);
-
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, String.class);
             return response.getBody();
@@ -48,32 +50,35 @@ public class CoinServiceImpl implements CoinService {
     @Override
     public List<Coin> getCoinsList(int page) {
         var cached = coinCacheService.getCoinList(page);
-        if (cached.isPresent()) {
-            return cached.get();
-        }
+        if (cached.isPresent()) return cached.get();
 
-        log.info("[CoinGecko] Fetching page {} (cache miss)", page);
-        String url = baseUrl + "/coins/markets" +
-                "?vs_currency=usd" +
-                "&order=market_cap_desc" +
-                "&per_page=10" +
-                "&page=" + page +
-                "&sparkline=false";
+        Object lock = pageLocks.computeIfAbsent(page, k -> new Object());
+        synchronized (lock) {
+            cached = coinCacheService.getCoinList(page);
+            if (cached.isPresent()) return cached.get();
 
-        try {
-            String body = callApi(url);
-            List<Coin> coins = objectMapper.readValue(body, new TypeReference<List<Coin>>() {});
+            // Chỉ 1 thread đến được đây
+            log.info("[CoinGecko] Fetching page {} (cache miss)", page);
+            String url = baseUrl + "/coins/markets" +
+                    "?vs_currency=usd" +
+                    "&order=market_cap_desc" +
+                    "&per_page=10" +
+                    "&page=" + page +
+                    "&sparkline=false";
 
-            // Save coins from CoinGecko to the database
-            for (Coin coin : coins) {
-                coinRepository.upsert(coin);
+            try {
+                String body = callApi(url);
+                List<Coin> coins = objectMapper.readValue(body, new TypeReference<List<Coin>>() {});
+
+                for (Coin coin : coins) {
+                    coinRepository.upsert(coin);
+                }
+
+                coinCacheService.saveCoinList(page, coins);
+                return coins;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to parse coin list: " + e.getMessage());
             }
-
-            coinCacheService.saveCoinList(page, coins);
-
-            return coins;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse coin list: " + e.getMessage());
         }
     }
 

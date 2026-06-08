@@ -23,7 +23,7 @@ public class CoinCacheService {
 
     private static final Duration COIN_LIST_TTL = Duration.ofSeconds(30);
     private static final String KEY_COIN_LIST = "coins:list:page.";
-    private static final String KEY_COIN_PRICE = "coins:preice:";
+    private static final String KEY_COIN_PRICE = "coins:price:";
 
     // circuit breaker
     private boolean redisAvailable = true;
