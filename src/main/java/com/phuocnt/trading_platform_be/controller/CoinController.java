@@ -2,6 +2,7 @@ package com.phuocnt.trading_platform_be.controller;
 
 import com.phuocnt.trading_platform_be.dto.response.ApiEnvelope;
 import com.phuocnt.trading_platform_be.dto.response.CoinSummaryResponse;
+import com.phuocnt.trading_platform_be.dto.response.KlineResponse;
 import com.phuocnt.trading_platform_be.entity.Coin;
 import com.phuocnt.trading_platform_be.mapper.CoinMapper;
 import com.phuocnt.trading_platform_be.service.CoinService;
@@ -35,6 +36,13 @@ public class CoinController {
     public ResponseEntity<ApiEnvelope<String>> getMarketChart(@PathVariable String coinId,
                                                  @RequestParam(defaultValue = "7") int days) {
         return ResponseEntity.ok(ApiEnvelope.success(coinService.getMarketChart(coinId, days)));
+    }
+
+    @GetMapping("{coinId}/klines")
+    public ResponseEntity<ApiEnvelope<List<KlineResponse>>> getKlines(@PathVariable String coinId,
+                                                                      @RequestParam(defaultValue = "1") String interval,
+                                                                      @RequestParam(defaultValue = "100") int limit) {
+        return ResponseEntity.ok(ApiEnvelope.success(coinService.getKlines(coinId, interval, limit)));
     }
 
     @GetMapping("/search")

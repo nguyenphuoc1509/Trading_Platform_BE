@@ -1,5 +1,6 @@
 package com.phuocnt.trading_platform_be.service;
 
+import com.phuocnt.trading_platform_be.dto.response.KlineResponse;
 import com.phuocnt.trading_platform_be.entity.Coin;
 
 import java.util.List;
@@ -18,4 +19,6 @@ public interface CoinService {
     String getTop50CoinsByMarketCapRank();
 
     String getTrendingCoins();
+
+    List<KlineResponse> getKlines(String coinId, String interval, int limit);
 }

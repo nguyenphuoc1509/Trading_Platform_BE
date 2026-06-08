@@ -1,5 +1,6 @@
 package com.phuocnt.trading_platform_be.service.impl;
 
+import com.phuocnt.trading_platform_be.dto.response.KlineResponse;
 import com.phuocnt.trading_platform_be.entity.Coin;
 import com.phuocnt.trading_platform_be.repository.CoinRepository;
 import com.phuocnt.trading_platform_be.service.CoinCacheService;
@@ -13,9 +14,12 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -124,5 +128,67 @@ public class CoinServiceImpl implements CoinService {
     public String getTrendingCoins() {
         String url = baseUrl + "/search/trending";
         return callApi(url);
+    }
+
+    private static final Map<String, String> COIN_ID_TO_SYMBOL = Map.ofEntries(
+            Map.entry("bitcoin",      "BTCUSDT"),
+            Map.entry("ethereum",     "ETHUSDT"),
+            Map.entry("binancecoin",  "BNBUSDT"),
+            Map.entry("solana",       "SOLUSDT"),
+            Map.entry("ripple",       "XRPUSDT"),
+            Map.entry("cardano",      "ADAUSDT"),
+            Map.entry("dogecoin",     "DOGEUSDT"),
+            Map.entry("avalanche-2",  "AVAXUSDT"),
+            Map.entry("polkadot",     "DOTUSDT"),
+            Map.entry("matic-network","MATICUSDT")
+    );
+
+    private String callBinanceApi(String url) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Accept", "application/json");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, String.class);
+            return response.getBody();
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            throw new RuntimeException("Binance API error: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public List<KlineResponse> getKlines(String coinId, String interval, int limit) {
+        String symbol = COIN_ID_TO_SYMBOL.get(coinId);
+        if (symbol == null) throw new RuntimeException("Unsupported coin: " + coinId);
+
+        int safeLimit = Math.min(limit, 1000);
+
+        String url = "https://api.binance.com/api/v3/klines" +
+                "?symbol=" + symbol +
+                "&interval=" + interval +
+                "&limit=" + safeLimit;
+
+        try {
+            String body = callBinanceApi(url);
+            JsonNode root = objectMapper.readTree(body);
+            List<KlineResponse> result = new ArrayList<>();
+
+            for (JsonNode kline : root) {
+                result.add(KlineResponse.builder()
+                        .openTime(kline.get(0).asLong())
+                        .open(kline.get(1).asText())
+                        .high(kline.get(2).asText())
+                        .low(kline.get(3).asText())
+                        .close(kline.get(4).asText())
+                        .volume(kline.get(5).asText())
+                        .closeTime(kline.get(6).asLong())
+                        .build());
+            }
+
+            log.info("[Binance] Fetched {} klines for {}/{}", result.size(), coinId, interval);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch klines for : " + coinId + ": " + e.getMessage());
+        }
+        return null;
     }
 }
