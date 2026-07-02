@@ -10,5 +10,8 @@ public interface WalletService {
     Wallet getWalletByUserId(Long userId);
     Wallet deposit(Long userId, BigDecimal amount);
     Wallet withdraw(Long userId, BigDecimal amount);
+    Wallet lockBalance(Long userId, BigDecimal amount, String purpose);
+    Wallet unlockBalance(Long userId, BigDecimal amount, String purpose);
+    Wallet consumeLockedBalance(Long userId, BigDecimal amount, String purpose);
     List<WalletTransaction> getTransactionHistory(Long userId);
 }

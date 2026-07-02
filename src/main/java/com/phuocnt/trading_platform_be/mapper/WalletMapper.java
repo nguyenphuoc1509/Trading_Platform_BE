@@ -15,7 +15,10 @@ public class WalletMapper {
     public static WalletResponse toWalletResponse(Wallet wallet) {
         return WalletResponse.builder()
                 .walletId(wallet.getId())
-                .balance(fmt4(wallet.getBalance()))
+                .balance(fmt4(wallet.getTotalBalance()))
+                .availableBalance(fmt4(wallet.getAvailableBalance()))
+                .lockedBalance(fmt4(wallet.getLockedBalance()))
+                .totalBalance(fmt4(wallet.getTotalBalance()))
                 .currency(wallet.getCurrency())
                 .build();
     }

@@ -3,13 +3,13 @@ package com.phuocnt.trading_platform_be.mapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 
 public class MapperUtils {
     // LocalDateTime → Unix milliseconds
     public static Long toMillis(LocalDateTime dt) {
         if (dt == null) return null;
-        return dt.toInstant(ZoneOffset.UTC).toEpochMilli();
+        return dt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 
     // BigDecimal → String 8

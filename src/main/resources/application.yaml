@@ -6,6 +6,9 @@ server:
 spring:
   application:
     name: trading-platform
+  devtools:
+    restart:
+      log-condition-evaluation-delta: false
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:trading_platform_db}
     username: ${DB_USERNAME}

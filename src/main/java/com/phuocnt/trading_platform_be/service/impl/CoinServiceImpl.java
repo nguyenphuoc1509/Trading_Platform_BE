@@ -186,9 +186,9 @@ public class CoinServiceImpl implements CoinService {
             }
 
             log.info("[Binance] Fetched {} klines for {}/{}", result.size(), coinId, interval);
+            return result;
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch klines for : " + coinId + ": " + e.getMessage());
         }
-        return null;
     }
 }

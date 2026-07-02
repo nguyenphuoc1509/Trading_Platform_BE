@@ -45,15 +45,16 @@ public class OrderServiceImpl implements OrderService {
 
     private void deductFromWallet(User user, BigDecimal amount,
                                   String purpose, TransactionType txType) {
-        Wallet wallet = walletRepository.findByUserId(user.getId())
+        Wallet wallet = walletRepository.findByUserIdForUpdate(user.getId())
                 .orElseThrow(() -> new RuntimeException("Wallet not found"));
 
-        if (wallet.getBalance().compareTo(amount) < 0)
+        wallet.getTotalBalance();
+        if (wallet.getAvailableBalance().compareTo(amount) < 0)
             throw new RuntimeException(
                     "Insufficient balance. Need: $" + amount
-                            + ", Have: $" + wallet.getBalance());
+                            + ", Have: $" + wallet.getAvailableBalance());
 
-        wallet.setBalance(wallet.getBalance().subtract(amount));
+        wallet.debitAvailable(amount);
         walletRepository.save(wallet);
 
         saveWalletTransaction(wallet, amount.negate(), txType,
@@ -64,19 +65,21 @@ public class OrderServiceImpl implements OrderService {
     private Order executeMarketOrder(User user, Coin coin,
                                      BigDecimal quantity, OrderType type) {
         BigDecimal currentPrice = getRealtimePrice(coin);
-        BigDecimal totalValue = currentPrice.multiply(quantity);
+        BigDecimal totalValue = moneyAmount(currentPrice.multiply(quantity));
 
         if (type == OrderType.BUY) {
-            deductFromWallet(user, totalValue,
+            // TODO: add trading fee when fee calculation is introduced.
+            BigDecimal fee = BigDecimal.ZERO;
+            BigDecimal totalCost = totalValue.add(fee);
+            deductFromWallet(user, totalCost,
                     "Buy " + formatQty(quantity) + " " + coin.getSymbol().toUpperCase(),
                     TransactionType.BUY);
             portfolioService.addCoinToPortfolio(user, coin, quantity, currentPrice);
         } else {
-            portfolioService.validateSellQuantity(user, coin, quantity);
-            addToBalance(user, totalValue,
+            portfolioService.removeCoinFromPortfolio(user, coin, quantity);
+            addToWallet(user, totalValue,
                     "Sell " + quantity + " " + coin.getSymbol().toUpperCase(),
                     TransactionType.SELL);
-            portfolioService.removeCoinFromPortfolio(user, coin, quantity);
         }
 
         Order order = new Order();
@@ -97,14 +100,13 @@ public class OrderServiceImpl implements OrderService {
         if (limitPrice == null || limitPrice.compareTo(BigDecimal.ZERO) <= 0)
             throw new RuntimeException("Limit price must be positive");
 
-        BigDecimal totalValue = limitPrice.multiply(quantity);
+        BigDecimal totalValue = moneyAmount(limitPrice.multiply(quantity));
 
         if (type == OrderType.BUY) {
-            deductFromWallet(user, totalValue,
-                    "Lock for limit buy " + coin.getSymbol().toUpperCase(),
-                    TransactionType.BUY);
+            walletService.lockBalance(user.getId(), totalValue,
+                    "Lock for limit buy " + coin.getSymbol().toUpperCase());
         } else {
-            portfolioService.validateSellQuantity(user, coin, quantity);
+            portfolioService.removeCoinFromPortfolio(user, coin, quantity);
         }
         return saveOrder(user, coin, quantity, limitPrice, BigDecimal.ZERO, type, OrderStatus.PENDING, OrderMode.LIMIT);
     }
@@ -127,22 +129,26 @@ public class OrderServiceImpl implements OrderService {
 
     // CANCELL ORDER
     @Override
+    @Transactional
     public Order cancelOrder(User user, Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        if (!order.getUser().getId().equals(user.getId()))
+        if (!order.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("You are not authorized to cancel this order");
+        }
 
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new RuntimeException("cannot cancel order with status " + order.getStatus());
         }
 
-        // refund money has been locked if Buy limit order
         if (order.getType() == OrderType.BUY && order.getMode() == OrderMode.LIMIT) {
-            BigDecimal refund = order.getPrice().multiply(order.getQuantity())
-                    .setScale(4, RoundingMode.HALF_UP);
-            addToWallet(user, refund, "Cancel BUY limit order #" + orderId, TransactionType.DEPOSIT);
+            BigDecimal lockedAmount = moneyAmount(order.getPrice().multiply(order.getQuantity()));
+            walletService.unlockBalance(user.getId(), lockedAmount, "Cancel BUY limit order #" + orderId);
+        }
+
+        if (order.getType() == OrderType.SELL && order.getMode() == OrderMode.LIMIT) {
+            portfolioService.restoreCoinToPortfolio(user, order.getCoin(), order.getQuantity());
         }
 
         order.setStatus(OrderStatus.CANCELLED);
@@ -160,11 +166,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void addToWallet(User user, BigDecimal amount, String purpose, TransactionType txType) {
-        Wallet wallet = walletRepository.findByUserId(user.getId())
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Amount must be positive");
+        }
+
+        Wallet wallet = walletRepository.findByUserIdForUpdate(user.getId())
                 .orElseThrow(() -> new RuntimeException("Wallet not found for user " + user.getId()));
 
-        wallet.setBalance(wallet.getBalance().add(amount));
+        wallet.creditAvailable(amount);
         walletRepository.save(wallet);
+        saveWalletTransaction(wallet, amount, txType, TransactionStatus.SUCCESS, purpose);
     }
 
     private void saveWalletTransaction(Wallet wallet, BigDecimal amount, TransactionType txType,
@@ -212,10 +223,15 @@ public class OrderServiceImpl implements OrderService {
         Coin coin = order.getCoin();
         BigDecimal quantity = order.getQuantity();
 
-        BigDecimal lockedAmount = order.getPrice().multiply(quantity).setScale(4, RoundingMode.HALF_UP);
-        BigDecimal actualCost = executedPrice.multiply(quantity).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal lockedAmount = moneyAmount(order.getPrice().multiply(quantity));
+        BigDecimal actualCost = moneyAmount(executedPrice.multiply(quantity));
+        if (actualCost.compareTo(lockedAmount) > 0) {
+            throw new RuntimeException("Executed price exceeds locked limit buy amount");
+        }
 
         BigDecimal refund = lockedAmount.subtract(actualCost);
+        walletService.consumeLockedBalance(user.getId(), lockedAmount,
+                "Execute BUY limit order #" + order.getId());
         if (refund.compareTo(BigDecimal.ZERO) > 0) {
             addToWallet(user, refund, "Refund from BUY limit " + coin.getSymbol().toUpperCase(),
                     TransactionType.DEPOSIT);
@@ -237,12 +253,8 @@ public class OrderServiceImpl implements OrderService {
         Coin coin = order.getCoin();
         BigDecimal quantity = order.getQuantity();
 
-        // remove coin from portfolio
-        portfolioService.removeCoinFromPortfolio(user, coin, quantity);
-
         // add money to wallet
-        BigDecimal revenue = executedPrice.multiply(quantity)
-                .setScale(4, RoundingMode.HALF_UP);
+        BigDecimal revenue = moneyAmount(executedPrice.multiply(quantity));
         addToWallet(user, revenue, "SELL limit " + formatQty(quantity) + " " + coin.getSymbol().toUpperCase(),
                 TransactionType.SELL);
 
@@ -297,23 +309,12 @@ public class OrderServiceImpl implements OrderService {
 
     }
 
-    private void addToBalance(User user, BigDecimal amount,
-                              String purpose, TransactionType txType) {
-        Wallet wallet = walletService.getWalletByUserId(user.getId());
-        wallet.setBalance(wallet.getBalance().add(amount));
-        walletRepository.save(wallet);
-
-        WalletTransaction tx = new WalletTransaction();
-        tx.setWallet(wallet);
-        tx.setAmount(amount);
-        tx.setType(txType);
-        tx.setStatus(TransactionStatus.SUCCESS);
-        tx.setPurpose(purpose);
-        walletTransactionRepository.save(tx);
-    }
-
     private String formatQty(BigDecimal qty) {
         return qty.stripTrailingZeros().toPlainString();
+    }
+
+    private BigDecimal moneyAmount(BigDecimal amount) {
+        return amount.setScale(4, RoundingMode.HALF_UP);
     }
 
     private BigDecimal getRealtimePrice(Coin coin) {

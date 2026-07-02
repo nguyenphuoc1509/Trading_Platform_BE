@@ -3,6 +3,7 @@ package com.phuocnt.trading_platform_be.mapper;
 import com.phuocnt.trading_platform_be.dto.response.OrderResponse;
 import com.phuocnt.trading_platform_be.entity.Coin;
 import com.phuocnt.trading_platform_be.entity.Order;
+import com.phuocnt.trading_platform_be.enums.OrderStatus;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -17,12 +18,12 @@ public class OrderMapper {
 
         String symbol = coin != null ? coin.getSymbol().toUpperCase() + "-USDT" : null;
 
+        BigDecimal displayPrice = getDisplayPrice(order);
         String totalValue = null;
-        if (order.getExecutedPrice() != null
-        && order.getExecutedPrice().compareTo(BigDecimal.ZERO) > 0
-        && order.getQuantity() != null) {
-            totalValue = fmt4(order.getExecutedPrice().multiply(order.getQuantity()));
+        if (displayPrice != null && order.getQuantity() != null) {
+            totalValue = fmt4(displayPrice.multiply(order.getQuantity()));
         }
+
         return OrderResponse.builder()
                 .orderId(String.valueOf(order.getId()))
                 .symbol(symbol)
@@ -30,8 +31,7 @@ public class OrderMapper {
                 .coinImage(coin != null ? coin.getImage() : null)
                 .quantity(fmt8(order.getQuantity()))
                 .price(fmt4(order.getPrice()))
-                .executedPrice(order.getExecutedPrice() != null
-                        ? fmt4(order.getExecutedPrice()) : null)
+                .executedPrice(isExecuted(order) ? fmt4(order.getExecutedPrice()) : null)
                 .totalValue(totalValue)
                 .side(order.getType())
                 .orderType(order.getMode())
@@ -39,6 +39,19 @@ public class OrderMapper {
                 .createdAt(toMillis(order.getCreatedAt()))
                 .executedAt(toMillis(order.getExecutedAt()))
                 .build();
+    }
+
+    private static BigDecimal getDisplayPrice(Order order) {
+        if (isExecuted(order)) {
+            return order.getExecutedPrice();
+        }
+        return order.getPrice();
+    }
+
+    private static boolean isExecuted(Order order) {
+        return order.getStatus() == OrderStatus.SUCCESS
+                && order.getExecutedPrice() != null
+                && order.getExecutedPrice().compareTo(BigDecimal.ZERO) > 0;
     }
 
     public static List<OrderResponse> toOrderResponseList(List<Order> orders) {

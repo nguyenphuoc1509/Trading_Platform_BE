@@ -21,7 +21,7 @@ public class CoinCacheService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
-    private static final Duration COIN_LIST_TTL = Duration.ofSeconds(30);
+    private static final Duration COIN_LIST_TTL = Duration.ofMinutes(5);
     private static final String KEY_COIN_LIST = "coins:list:page.";
     private static final String KEY_COIN_PRICE = "coins:price:";
 

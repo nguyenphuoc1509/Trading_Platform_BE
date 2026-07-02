@@ -2,6 +2,7 @@ package com.phuocnt.trading_platform_be.service;
 
 import com.phuocnt.trading_platform_be.dto.ws.KlineMessage;
 import com.phuocnt.trading_platform_be.dto.ws.PriceMessage;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,36 +36,40 @@ public class ExchangeStreamService implements ApplicationRunner {
     @Value("${binance.stream.enabled:true}")
     private boolean enabled;
 
-    // Mapping Binance symbol → CoinGecko coinId
     private static final Map<String, String> SYMBOL_TO_COIN_ID = Map.ofEntries(
-            Map.entry("BTCUSDT",   "bitcoin"),
-            Map.entry("ETHUSDT",   "ethereum"),
-            Map.entry("BNBUSDT",   "binancecoin"),
-            Map.entry("SOLUSDT",   "solana"),
-            Map.entry("XRPUSDT",   "ripple"),
-            Map.entry("ADAUSDT",   "cardano"),
-            Map.entry("DOGEUSDT",  "dogecoin"),
-            Map.entry("AVAXUSDT",  "avalanche-2"),
-            Map.entry("DOTUSDT",   "polkadot"),
+            Map.entry("BTCUSDT", "bitcoin"),
+            Map.entry("ETHUSDT", "ethereum"),
+            Map.entry("BNBUSDT", "binancecoin"),
+            Map.entry("SOLUSDT", "solana"),
+            Map.entry("XRPUSDT", "ripple"),
+            Map.entry("ADAUSDT", "cardano"),
+            Map.entry("DOGEUSDT", "dogecoin"),
+            Map.entry("AVAXUSDT", "avalanche-2"),
+            Map.entry("DOTUSDT", "polkadot"),
             Map.entry("MATICUSDT", "matic-network")
     );
 
     private static final Map<String, String> SYMBOL_TO_NAME = Map.ofEntries(
-            Map.entry("BTCUSDT",   "Bitcoin"),
-            Map.entry("ETHUSDT",   "Ethereum"),
-            Map.entry("BNBUSDT",   "BNB"),
-            Map.entry("SOLUSDT",   "Solana"),
-            Map.entry("XRPUSDT",   "XRP"),
-            Map.entry("ADAUSDT",   "Cardano"),
-            Map.entry("DOGEUSDT",  "Dogecoin"),
-            Map.entry("AVAXUSDT",  "Avalanche"),
-            Map.entry("DOTUSDT",   "Polkadot"),
+            Map.entry("BTCUSDT", "Bitcoin"),
+            Map.entry("ETHUSDT", "Ethereum"),
+            Map.entry("BNBUSDT", "BNB"),
+            Map.entry("SOLUSDT", "Solana"),
+            Map.entry("XRPUSDT", "XRP"),
+            Map.entry("ADAUSDT", "Cardano"),
+            Map.entry("DOGEUSDT", "Dogecoin"),
+            Map.entry("AVAXUSDT", "Avalanche"),
+            Map.entry("DOTUSDT", "Polkadot"),
             Map.entry("MATICUSDT", "Polygon")
     );
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private WebSocket webSocket;
+
+    private final ScheduledExecutorService scheduler =
+            Executors.newSingleThreadScheduledExecutor();
+
+    private volatile boolean running = true;
+
+    private volatile WebSocket webSocket;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -72,115 +77,222 @@ public class ExchangeStreamService implements ApplicationRunner {
             log.info("[Binance] Stream disabled — skipping");
             return;
         }
+
         connect();
     }
 
     private void connect() {
+        if (!running) {
+            return;
+        }
+
         String url = buildStreamUrl();
+
         log.info("[Binance] Connecting to stream: {}", url);
 
         httpClient.newWebSocketBuilder()
                 .buildAsync(URI.create(url), new BinanceListener())
                 .thenAccept(ws -> {
+
+                    if (!running) {
+                        ws.abort();
+                        return;
+                    }
+
                     this.webSocket = ws;
-                    ws.request(1); // start receiving
+
+                    ws.request(1);
+
                     log.info("[Binance] Connected successfully");
                 })
                 .exceptionally(e -> {
-                    log.error("[Binance] Connection failed: {} — retry in 5s", e.getMessage());
-                    scheduleReconnect();
+                    if (running) {
+                        log.error("[Binance] Connection failed: {}", e.getMessage());
+                        scheduleReconnect();
+                    }
                     return null;
                 });
     }
 
     private String buildStreamUrl() {
-        // Combine ticker + kline_1m streams cho mỗi symbol
-        List<String> streams = SYMBOL_TO_COIN_ID.keySet().stream()
+        List<String> streams = SYMBOL_TO_COIN_ID.keySet()
+                .stream()
                 .map(symbol -> {
                     String s = symbol.toLowerCase();
                     return s + "@ticker/" + s + "@kline_1m";
                 })
                 .collect(Collectors.toList());
 
-        return "wss://stream.binance.com:9443/stream?streams=" + String.join("/", streams);
+        return "wss://stream.binance.com:9443/stream?streams="
+                + String.join("/", streams);
     }
 
     private void scheduleReconnect() {
+
+        if (!running || scheduler.isShutdown()) {
+            return;
+        }
+
         scheduler.schedule(() -> {
+
+            if (!running) {
+                return;
+            }
+
             log.info("[Binance] Reconnecting...");
             connect();
+
         }, 5, TimeUnit.SECONDS);
     }
 
-    // ─── WebSocket Listener ───────────────────────────────────────────────────
+    @PreDestroy
+    public void shutdown() {
+
+        log.info("[Binance] Shutting down stream service");
+
+        running = false;
+
+        try {
+            if (webSocket != null) {
+                webSocket.abort();
+                log.info("[Binance] WebSocket closed");
+            }
+        } catch (Exception e) {
+            log.warn("[Binance] Failed to close WebSocket", e);
+        }
+
+        try {
+
+            scheduler.shutdownNow();
+
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("[Binance] Scheduler did not terminate cleanly");
+            }
+
+        } catch (InterruptedException e) {
+
+            Thread.currentThread().interrupt();
+        }
+
+        log.info("[Binance] Stream service stopped");
+    }
 
     private class BinanceListener implements WebSocket.Listener {
+
         private final StringBuilder buffer = new StringBuilder();
 
         @Override
-        public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
+        public CompletionStage<?> onText(
+                WebSocket ws,
+                CharSequence data,
+                boolean last
+        ) {
+
             buffer.append(data);
+
             if (last) {
                 handleMessage(buffer.toString());
                 buffer.setLength(0);
             }
-            ws.request(1); // request next message
+
+            ws.request(1);
+
             return null;
         }
 
         @Override
-        public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
-            log.warn("[Binance] Stream closed: {} — {}", statusCode, reason);
-            scheduleReconnect();
+        public CompletionStage<?> onClose(
+                WebSocket ws,
+                int statusCode,
+                String reason
+        ) {
+
+            log.warn(
+                    "[Binance] Stream closed: {} - {}",
+                    statusCode,
+                    reason
+            );
+
+            if (running) {
+                scheduleReconnect();
+            }
+
             return null;
         }
 
         @Override
         public void onError(WebSocket ws, Throwable error) {
-            log.error("[Binance] Stream error: {}", error.getMessage());
-            scheduleReconnect();
+
+            log.error(
+                    "[Binance] Stream error: {}",
+                    error.getMessage()
+            );
+
+            if (running) {
+                scheduleReconnect();
+            }
         }
     }
 
-    // ─── Message Handlers ─────────────────────────────────────────────────────
-
     private void handleMessage(String json) {
+
         try {
+
             JsonNode root = objectMapper.readTree(json);
+
             String stream = root.path("stream").asText();
+
             JsonNode data = root.path("data");
 
             if (stream.endsWith("@ticker")) {
+
                 handleTicker(data);
+
             } else if (stream.contains("@kline_")) {
+
                 handleKline(data);
             }
+
         } catch (Exception e) {
-            log.warn("[Binance] Failed to parse message: {}", e.getMessage());
+
+            log.warn(
+                    "[Binance] Failed to parse message: {}",
+                    e.getMessage()
+            );
         }
     }
 
     private void handleTicker(JsonNode data) {
-        String binanceSymbol = data.path("s").asText(); // "BTCUSDT"
+
+        if (!running) {
+            return;
+        }
+
+        String binanceSymbol = data.path("s").asText();
+
         String coinId = SYMBOL_TO_COIN_ID.get(binanceSymbol);
-        if (coinId == null) return;
 
-        String price    = data.path("c").asText(); // close/current price
-        String open24h  = data.path("o").asText();
-        String high24h  = data.path("h").asText();
-        String low24h   = data.path("l").asText();
-        String volume   = data.path("v").asText();
-        String change   = data.path("P").asText(); // price change %
+        if (coinId == null) {
+            return;
+        }
 
-        // Lưu giá mới nhất vào Redis
+        String price = data.path("c").asText();
+        String open24h = data.path("o").asText();
+        String high24h = data.path("h").asText();
+        String low24h = data.path("l").asText();
+        String volume = data.path("v").asText();
+        String change = data.path("P").asText();
+
         coinCacheService.savePrice(coinId, price);
 
-        // Broadcast xuống WebSocket clients
         PriceMessage msg = PriceMessage.builder()
                 .type("PRICE_UPDATE")
                 .coinId(coinId)
                 .symbol(binanceSymbol.replace("USDT", ""))
-                .name(SYMBOL_TO_NAME.getOrDefault(binanceSymbol, binanceSymbol))
+                .name(SYMBOL_TO_NAME.getOrDefault(
+                        binanceSymbol,
+                        binanceSymbol
+                ))
                 .price(price)
                 .open24h(open24h)
                 .high24h(high24h)
@@ -194,9 +306,18 @@ public class ExchangeStreamService implements ApplicationRunner {
     }
 
     private void handleKline(JsonNode data) {
+
+        if (!running) {
+            return;
+        }
+
         String binanceSymbol = data.path("s").asText();
+
         String coinId = SYMBOL_TO_COIN_ID.get(binanceSymbol);
-        if (coinId == null) return;
+
+        if (coinId == null) {
+            return;
+        }
 
         JsonNode k = data.path("k");
 

@@ -35,6 +35,7 @@ public class AuthController {
 
     @Autowired
     private ForgotPasswordService forgotPasswordService;
+
     @Autowired
     private EmailService emailService;
 
@@ -78,23 +79,31 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password/verify-otp")
-    public ResponseEntity<ApiResponse> verifyPasswordOtp(@RequestParam String id,
-                                                    @RequestBody ResetPasswordRequest req) {
+    public ResponseEntity<ApiResponse> verifyPasswordOtp(
+            @RequestParam String id,
+            @RequestBody ResetPasswordRequest req) {
+
         ForgotPassword forgotPassword = forgotPasswordService.findById(id);
 
+        if (forgotPassword == null) {
+            throw new RuntimeException("Invalid reset password session");
+        }
+
         if (forgotPassword.getExpiredAt().isBefore(LocalDateTime.now())) {
+            forgotPasswordService.deleteToken(forgotPassword);
             throw new RuntimeException("OTP has expired");
         }
 
-        boolean isVerified = forgotPassword.getOtp().equals(req.getOtp());
-
-        if(isVerified) {
-            userService.updatePassword(forgotPassword.getUser(), req.getPassword());
-            ApiResponse res = new ApiResponse();
-            res.setMessage("Password update successfully");
-            res.setStatus(true);
-            return new ResponseEntity<>(res, HttpStatus.CREATED);
+        if (!forgotPassword.getOtp().equals(req.getOtp())) {
+            throw new RuntimeException("Wrong OTP");
         }
-        throw new RuntimeException("Wrong Otp");
+
+        userService.updatePassword(forgotPassword.getUser(), req.getPassword());
+        forgotPasswordService.deleteToken(forgotPassword);
+
+        ApiResponse res = new ApiResponse();
+        res.setMessage("Password updated successfully");
+        res.setStatus(true);
+        return new ResponseEntity<>(res, HttpStatus.CREATED);
     }
 }

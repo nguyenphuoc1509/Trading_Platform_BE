@@ -11,4 +11,5 @@ public interface PortfolioService {
     void addCoinToPortfolio(User user, Coin coin, BigDecimal quantity, BigDecimal price);
     void validateSellQuantity(User user, Coin coin, BigDecimal quantity);
     void removeCoinFromPortfolio(User user, Coin coin, BigDecimal quantity);
+    void restoreCoinToPortfolio(User user, Coin coin, BigDecimal quantity);
 }

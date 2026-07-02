@@ -8,9 +8,11 @@ import com.phuocnt.trading_platform_be.repository.PortfolioItemRepository;
 import com.phuocnt.trading_platform_be.repository.PortfolioRepository;
 import com.phuocnt.trading_platform_be.service.CoinService;
 import com.phuocnt.trading_platform_be.service.PortfolioService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import jakarta.transaction.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,9 +40,12 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
 
     @Override
+    @Transactional
     public void addCoinToPortfolio(User user, Coin coin, BigDecimal quantity, BigDecimal price) {
         Portfolio portfolio = getPortfolio(user);
-        Optional<PortfolioItem> existingItem = portfolioItemRepository.findByPortfolioAndCoin(portfolio, coin);
+
+        Optional<PortfolioItem> existingItem =
+                portfolioItemRepository.findByPortfolioAndCoinForUpdate(portfolio, coin);
 
         if (existingItem.isPresent()) {
             PortfolioItem item = existingItem.get();
@@ -50,9 +55,10 @@ public class PortfolioServiceImpl implements PortfolioService {
                     .multiply(item.getQuantity())
                     .add(price.multiply(quantity))
                     .divide(totalQty, 8, RoundingMode.HALF_UP);
+
             item.setQuantity(totalQty);
             item.setAvgBuyPrice(newAvg);
-            portfolioRepository.save(portfolio);
+            portfolioItemRepository.save(item);
         } else {
             PortfolioItem item = new PortfolioItem();
             item.setPortfolio(portfolio);
@@ -61,14 +67,16 @@ public class PortfolioServiceImpl implements PortfolioService {
             item.setAvgBuyPrice(price);
             portfolioItemRepository.save(item);
         }
+
         updatePortfolioValue(portfolio);
     }
-
     @Override
+    @Transactional
     public void validateSellQuantity(User user, Coin coin, BigDecimal quantity) {
         Portfolio portfolio = getPortfolio(user);
+
         PortfolioItem item = portfolioItemRepository
-                .findByPortfolioAndCoin(portfolio, coin)
+                .findByPortfolioAndCoinForUpdate(portfolio, coin)
                 .orElseThrow(() -> new RuntimeException("You don't own any " + coin.getSymbol()));
 
         if (item.getQuantity().compareTo(quantity) < 0) {
@@ -77,19 +85,27 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
 
     @Override
+    @Transactional
     public void removeCoinFromPortfolio(User user, Coin coin, BigDecimal quantity) {
         Portfolio portfolio = getPortfolio(user);
+
         PortfolioItem item = portfolioItemRepository
-                .findByPortfolioAndCoin(portfolio, coin)
+                .findByPortfolioAndCoinForUpdate(portfolio, coin)
                 .orElseThrow(() -> new RuntimeException("Coin not found in portfolio"));
 
+        if (item.getQuantity().compareTo(quantity) < 0) {
+            throw new RuntimeException("You don't have enough " + coin.getSymbol() + " to sell");
+        }
+
         BigDecimal remaining = item.getQuantity().subtract(quantity);
+
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             portfolioItemRepository.delete(item);
         } else {
             item.setQuantity(remaining);
-            portfolioRepository.save(portfolio);
+            portfolioItemRepository.save(item);
         }
+
         updatePortfolioValue(portfolio);
     }
 
@@ -102,5 +118,27 @@ public class PortfolioServiceImpl implements PortfolioService {
         portfolio.setTotalValue(total);
         portfolio.setUpdatedAt(LocalDateTime.now());
         portfolioRepository.save(portfolio);
+    }
+
+    @Override
+    @Transactional
+    public void restoreCoinToPortfolio(User user, Coin coin, BigDecimal quantity) {
+        Portfolio portfolio = getPortfolio(user);
+        Optional<PortfolioItem> existingItem = portfolioItemRepository.findByPortfolioAndCoin(portfolio, coin);
+
+        if (existingItem.isPresent()) {
+            PortfolioItem item = existingItem.get();
+            item.setQuantity(item.getQuantity().add(quantity));
+            portfolioItemRepository.save(item);
+        } else {
+            PortfolioItem item = new PortfolioItem();
+            item.setPortfolio(portfolio);
+            item.setCoin(coin);
+            item.setQuantity(quantity);
+            item.setAvgBuyPrice(BigDecimal.ZERO);
+            portfolioItemRepository.save(item);
+        }
+
+        updatePortfolioValue(portfolio);
     }
 }
